@@ -61,7 +61,10 @@ def main():
     model.save("model/chatbot_model.h5")
     pickle.dump(words, open("model/words.pkl", "wb"))
     pickle.dump(classes, open("model/classes.pkl", "wb"))
-    print("Saved model/chatbot_model.h5, model/words.pkl, model/classes.pkl")
+    # JSON copies for the browser-side (TensorFlow.js) inference in web/app.js.
+    json.dump(words, open("model/words.json", "w"), indent=2)
+    json.dump(classes, open("model/classes.json", "w"), indent=2)
+    print("Saved model/chatbot_model.h5, model/words.pkl, model/classes.pkl, model/words.json, model/classes.json")
 
     # Persist final metrics for the report.
     with open("model/train_metrics.json", "w") as f:

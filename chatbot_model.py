@@ -1,31 +1,27 @@
 """
 chatbot_model.py
-Preprocessing utilities (tokenize/lemmatize/bag-of-words) and the Keras
-intent-classification model definition used by train.py and app.py.
+Preprocessing utilities (tokenize/bag-of-words) and the Keras
+intent-classification model definition used by train.py.
+
+Tokenization is deliberately a plain regex word-split (no NLTK
+lemmatization) so that the exact same logic can be reproduced in
+JavaScript for the client-side (TensorFlow.js) inference used by the
+deployed static site — see web/app.js's tokenize().
 """
 import json
 import pickle
 import random
+import re
 
-import nltk
 import numpy as np
-from nltk.stem import WordNetLemmatizer
 
-# Ensure required NLTK data is available (safe to call repeatedly).
-for pkg in ["punkt", "punkt_tab", "wordnet", "omw-1.4"]:
-    try:
-        nltk.data.find(pkg)
-    except LookupError:
-        nltk.download(pkg, quiet=True)
-
-lemmatizer = WordNetLemmatizer()
-IGNORE_CHARS = {"?", "!", ".", ",", "'s", "’"}
+IGNORE_CHARS = {"?", "!", ".", ","}
 
 
 def tokenize(sentence: str):
-    """Lowercase, tokenize, and lemmatize a sentence into a list of words."""
-    tokens = nltk.word_tokenize(sentence.lower())
-    return [lemmatizer.lemmatize(t) for t in tokens if t not in IGNORE_CHARS]
+    """Lowercase and split into word tokens (letters/apostrophes only)."""
+    tokens = re.findall(r"[a-z']+", sentence.lower())
+    return [t for t in tokens if t not in IGNORE_CHARS]
 
 
 def bag_of_words(sentence: str, vocab: list) -> np.ndarray:

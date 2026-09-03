@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Voice-Enabled Chatbot</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>🎤 Voice-Enabled Chatbot</h1>
+      <p class="subtitle">
+        Speech Recognition (browser Web Speech API) + Deep Learning intent
+        classification (TensorFlow.js neural network) &mdash; runs entirely
+        in your browser, no server required.
+      </p>
+    </header>
+
+    <section id="chat-window" class="chat-window" aria-live="polite"></section>
+
+    <section class="controls">
+      <input
+        id="text-input"
+        type="text"
+        placeholder="Click 🎤 Speak, or type a message here..."
+        autocomplete="off"
+      />
+      <button id="speak-btn" title="Speak">🎤 Speak</button>
+      <button id="send-btn" title="Send">Send</button>
+    </section>
+
+    <p id="status" class="status">Loading model…</p>
+    <p class="footnote">
+      Works best in <strong>Chrome / Edge</strong> (Web Speech API is not
+      supported in Firefox &mdash; use the text box there instead).
+    </p>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
