@@ -1,0 +1,19 @@
+# Azure ML command job spec (CLI v2 / Studio "Create job from YAML").
+# Documents how training was run on Azure Machine Learning; the actual
+# lab run was executed interactively on an Azure ML Compute Instance (see
+# README.md's Azure ML section) since portal/notebook access was more
+# reliable than CLI auth under this tenant's Conditional Access policy.
+$schema: https://azuremlschemas.azureedge.net/latest/commandJob.schema.json
+code: ..
+command: python train.py && python export_web_model.py
+environment:
+  conda_file: environment.yml
+  image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04
+compute: azureml:serverless
+display_name: voice-chatbot-training
+experiment_name: voice-chatbot
+description: >
+  Trains the intent-classification feedforward NN (chatbot_model.py /
+  train.py) on the custom intents dataset (data/intents.json), then
+  exports browser-ready weights (export_web_model.py) for the Azure
+  Static Web Apps deployment.

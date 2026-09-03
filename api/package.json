@@ -1,0 +1,7 @@
+{
+  "name": "voice-chatbot-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Azure Function that mints short-lived Azure AI Speech tokens for the client, keeping the Speech resource key server-side.",
+  "main": "get-speech-token/index.js"
+}

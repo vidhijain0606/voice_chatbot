@@ -1,0 +1,9 @@
+name: voice-chatbot-training
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+      - tensorflow==2.16.1
+      - numpy==1.26.4

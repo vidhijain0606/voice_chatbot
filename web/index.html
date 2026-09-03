@@ -11,9 +11,9 @@
     <header>
       <h1>🎤 Voice-Enabled Chatbot</h1>
       <p class="subtitle">
-        Speech Recognition (browser Web Speech API) + Deep Learning intent
-        classification (TensorFlow.js neural network) &mdash; runs entirely
-        in your browser, no server required.
+        Speech Recognition (Azure AI Speech) + Deep Learning intent
+        classification (neural network trained via Azure Machine Learning,
+        running client-side). Hosted on Azure Static Web Apps.
       </p>
     </header>
 
@@ -32,11 +32,12 @@
 
     <p id="status" class="status">Loading model…</p>
     <p class="footnote">
-      Works best in <strong>Chrome / Edge</strong> (Web Speech API is not
-      supported in Firefox &mdash; use the text box there instead).
+      Voice recognition requires microphone access &mdash; if it's
+      unavailable, use the text box instead.
     </p>
   </main>
 
+  <script src="lib/speech-sdk.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

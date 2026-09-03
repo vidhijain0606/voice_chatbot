@@ -1,10 +1,14 @@
 /**
  * app.js
- * Fully client-side voice chatbot:
- *  - Web Speech API for voice -> text
+ * Voice chatbot:
+ *  - Azure AI Speech (Speech SDK for JavaScript) for voice -> text. The
+ *    browser fetches a short-lived token from /api/get-speech-token (an
+ *    Azure Function -- see api/get-speech-token/index.js) so the Speech
+ *    resource key never reaches client code.
  *  - A tiny hand-written feedforward neural network forward pass runs the
- *    Keras-trained intent-classification model directly from its exported
- *    weights (model/weights.json) -- no ML library/runtime needed.
+ *    Keras-trained intent-classification model (trained via an Azure
+ *    Machine Learning job) directly from its exported weights
+ *    (model/weights.json) -- no ML library/runtime needed client-side.
  *  - Bag-of-words preprocessing mirrors chatbot_model.py's tokenize()
  *    exactly (lowercase, regex word split on [a-z']+) so predictions match
  *    the Python-trained model bit-for-bit.
@@ -121,41 +125,61 @@ function handleUserMessage(message) {
   addBubble("bot", reply, `intent: ${tag}, confidence: ${confidence.toFixed(2)}`);
 }
 
-// --- Web Speech API ---
-const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition = null;
+// --- Azure AI Speech (Speech SDK for JavaScript) ---
+let cachedToken = null; // { token, region, fetchedAt }
+const TOKEN_TTL_MS = 9 * 60 * 1000; // tokens are valid 10 min; refresh a bit early
 
-if (SpeechRecognitionCtor) {
-  recognition = new SpeechRecognitionCtor();
-  recognition.lang = "en-US";
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
-
-  recognition.onstart = () => {
-    speakBtn.classList.add("listening");
-    setStatus("Listening... speak now.");
-  };
-
-  recognition.onresult = (event) => {
-    const transcript = event.results[0][0].transcript;
-    setStatus(`Recognized: "${transcript}"`);
-    handleUserMessage(transcript);
-  };
-
-  recognition.onerror = (event) => {
-    setStatus(`Speech recognition error: ${event.error}`);
-  };
-
-  recognition.onend = () => {
-    speakBtn.classList.remove("listening");
-  };
-} else {
-  speakBtn.disabled = true;
-  setStatus("Speech recognition not supported in this browser. Please type your message instead.");
+async function getSpeechToken() {
+  if (cachedToken && Date.now() - cachedToken.fetchedAt < TOKEN_TTL_MS) {
+    return cachedToken;
+  }
+  const res = await fetch("/api/get-speech-token");
+  if (!res.ok) throw new Error(`Token request failed: ${res.status}`);
+  const { token, region } = await res.json();
+  cachedToken = { token, region, fetchedAt: Date.now() };
+  return cachedToken;
 }
 
-speakBtn.addEventListener("click", () => {
-  if (recognition) recognition.start();
+async function recognizeSpeechOnce() {
+  const { token, region } = await getSpeechToken();
+  const speechConfig = SpeechSDK.SpeechConfig.fromAuthorizationToken(token, region);
+  speechConfig.speechRecognitionLanguage = "en-US";
+  const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
+  const recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
+
+  return new Promise((resolve, reject) => {
+    recognizer.recognizeOnceAsync(
+      (result) => {
+        recognizer.close();
+        if (result.reason === SpeechSDK.ResultReason.RecognizedSpeech) {
+          resolve(result.text);
+        } else {
+          reject(new Error(`No speech recognized (reason: ${result.reason}).`));
+        }
+      },
+      (err) => {
+        recognizer.close();
+        reject(err);
+      }
+    );
+  });
+}
+
+speakBtn.addEventListener("click", async () => {
+  speakBtn.disabled = true;
+  speakBtn.classList.add("listening");
+  setStatus("Listening... speak now.");
+  try {
+    const transcript = await recognizeSpeechOnce();
+    setStatus(`Recognized: "${transcript}"`);
+    handleUserMessage(transcript);
+  } catch (err) {
+    console.error(err);
+    setStatus(`Speech recognition error: ${err.message || err}`);
+  } finally {
+    speakBtn.disabled = false;
+    speakBtn.classList.remove("listening");
+  }
 });
 
 sendBtn.addEventListener("click", () => handleUserMessage(textInput.value));
@@ -178,11 +202,7 @@ async function init() {
     intents = intentsData;
 
     sendBtn.disabled = false;
-    if (!SpeechRecognitionCtor) {
-      setStatus("Model loaded. Speech recognition unsupported here — use the text box.");
-    } else {
-      setStatus("Model loaded. Click 🎤 Speak or type a message.");
-    }
+    setStatus("Model loaded. Click 🎤 Speak or type a message.");
     addBubble("bot", "Hi! I'm ready. Click the mic and talk, or type a message below.");
   } catch (err) {
     console.error(err);
