@@ -1,0 +1,8 @@
+{
+  "final_accuracy": 1.0,
+  "final_loss": 0.025558916851878166,
+  "epochs": 200,
+  "num_intents": 15,
+  "num_patterns": 69,
+  "vocab_size": 97
+}

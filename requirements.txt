@@ -1,0 +1,4 @@
+gradio==5.50.0
+tensorflow==2.16.1
+nltk==3.9.1
+numpy==1.26.4

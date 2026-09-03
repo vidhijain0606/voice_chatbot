@@ -1,0 +1,79 @@
+{
+  "intents": [
+    {
+      "tag": "greeting",
+      "patterns": ["Hi", "Hello", "Hey", "Good morning", "Good evening", "What's up", "Hey there", "Howdy"],
+      "responses": ["Hello! How can I help you today?", "Hi there! What can I do for you?", "Hey! Nice to hear from you."]
+    },
+    {
+      "tag": "goodbye",
+      "patterns": ["Bye", "See you later", "Goodbye", "I am leaving", "Have a good day", "Catch you later", "Talk to you soon"],
+      "responses": ["Goodbye! Have a great day.", "See you later, take care!", "Bye! Come back soon."]
+    },
+    {
+      "tag": "thanks",
+      "patterns": ["Thanks", "Thank you", "That's helpful", "Thanks a lot", "I appreciate it", "Thank you so much"],
+      "responses": ["You're welcome!", "Happy to help!", "Anytime, glad I could assist."]
+    },
+    {
+      "tag": "about",
+      "patterns": ["What are you", "Who are you", "What is your name", "Tell me about yourself", "Are you a robot", "Are you human"],
+      "responses": ["I am a voice-enabled chatbot built using deep learning and speech recognition.", "I'm an AI assistant trained to understand and respond to your voice and text."]
+    },
+    {
+      "tag": "help",
+      "patterns": ["Help me", "I need help", "Can you help me", "What can you do", "I need assistance", "Support"],
+      "responses": ["Sure, I can chat with you and answer basic questions. What do you need help with?", "I can respond to greetings, questions about myself, and general small talk. Try asking me something!"]
+    },
+    {
+      "tag": "name",
+      "patterns": ["What should I call you", "Do you have a name", "Your name please"],
+      "responses": ["You can call me VoiceBot.", "I go by VoiceBot!"]
+    },
+    {
+      "tag": "hours",
+      "patterns": ["When are you available", "What are your hours", "Are you available 24/7", "When can I talk to you"],
+      "responses": ["I'm available 24/7, anytime you need me!", "I don't sleep, so I'm always here to chat."]
+    },
+    {
+      "tag": "weather_smalltalk",
+      "patterns": ["How is the weather", "Is it raining", "What's the weather like", "Is it sunny today"],
+      "responses": ["I can't check live weather yet, but I hope it's a nice day where you are!", "I don't have weather data, but I hope the sun is shining for you."]
+    },
+    {
+      "tag": "joke",
+      "patterns": ["Tell me a joke", "Make me laugh", "Say something funny", "Do you know any jokes"],
+      "responses": ["Why did the computer go to therapy? It had too many bytes of emotional baggage!", "I told my computer I needed a break, and it said no problem, it'll go to sleep."]
+    },
+    {
+      "tag": "mood",
+      "patterns": ["How are you", "How are you doing", "How do you feel", "Are you okay"],
+      "responses": ["I'm just a program, but I'm running smoothly! How are you?", "Doing great, thanks for asking! How about you?"]
+    },
+    {
+      "tag": "identity_user",
+      "patterns": ["My name is", "I am called", "You can call me", "This is"],
+      "responses": ["Nice to meet you! How can I help you today?", "Great to know your name! What would you like to talk about?"]
+    },
+    {
+      "tag": "purpose",
+      "patterns": ["Why were you made", "What is your purpose", "Why do you exist"],
+      "responses": ["I was built as a lab project to demonstrate speech recognition and deep learning working together in a chatbot.", "My purpose is to show how voice input can be converted to text and understood using a neural network."]
+    },
+    {
+      "tag": "compliment",
+      "patterns": ["You are smart", "You are helpful", "Good job", "Well done", "You are awesome", "Nice work"],
+      "responses": ["Thank you, that means a lot!", "I appreciate the kind words!"]
+    },
+    {
+      "tag": "confused",
+      "patterns": ["I don't understand", "That doesn't make sense", "What do you mean", "Can you explain"],
+      "responses": ["Sorry for the confusion! Could you rephrase that?", "Let me try again — could you ask that differently?"]
+    },
+    {
+      "tag": "fallback",
+      "patterns": [],
+      "responses": ["I'm sorry, I didn't quite understand that. Could you rephrase?", "I'm not sure I follow — can you try asking differently?", "Hmm, I don't have an answer for that yet."]
+    }
+  ]
+}
