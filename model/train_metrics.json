@@ -1,6 +1,6 @@
 {
   "final_accuracy": 0.9855072498321533,
-  "final_loss": 0.04969612881541252,
+  "final_loss": 0.06162726506590843,
   "epochs": 200,
   "num_intents": 15,
   "num_patterns": 69,
