@@ -38,7 +38,7 @@
     {
       "tag": "weather_smalltalk",
       "patterns": ["How is the weather", "Is it raining", "What's the weather like", "Is it sunny today"],
-      "responses": ["I can't check live weather yet, but I hope it's a nice day where you are!", "I don't have weather data, but I hope the sun is shining for you."]
+      "responses": ["I couldn't fetch live weather data just now, but I hope it's a nice day where you are! Try again in a moment, or tell me a city, e.g. \"weather in Chennai\"."]
     },
     {
       "tag": "joke",

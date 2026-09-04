@@ -9,13 +9,25 @@
 <body>
   <main class="app">
     <header>
-      <h1>🎤 Voice-Enabled Chatbot</h1>
+      <div class="title-row">
+        <h1>🎤 Voice-Enabled Chatbot</h1>
+        <button id="clear-btn" class="ghost-btn" title="Clear chat">Clear chat</button>
+      </div>
       <p class="subtitle">
         Speech Recognition (Azure AI Speech) + Deep Learning intent
         classification (neural network trained via Azure Machine Learning,
-        running client-side). Hosted on Azure Static Web Apps.
+        running client-side), plus live weather, time, date and quick math.
+        Hosted on Azure Static Web Apps.
       </p>
     </header>
+
+    <div id="suggestion-chips" class="chips">
+      <button class="chip" data-message="What's the weather?">🌤️ Weather</button>
+      <button class="chip" data-message="What time is it?">🕒 Time</button>
+      <button class="chip" data-message="What is 12 * 7?">🧮 Quick math</button>
+      <button class="chip" data-message="Tell me a joke">😄 Joke</button>
+      <button class="chip" data-message="What can you do?">❓ Help</button>
+    </div>
 
     <section id="chat-window" class="chat-window" aria-live="polite"></section>
 
@@ -23,7 +35,7 @@
       <input
         id="text-input"
         type="text"
-        placeholder="Click 🎤 Speak, or type a message here..."
+        placeholder="Try: 'what's the weather', 'what time is it', or type a message…"
         autocomplete="off"
       />
       <button id="speak-btn" title="Speak">🎤 Speak</button>
@@ -33,7 +45,8 @@
     <p id="status" class="status">Loading model…</p>
     <p class="footnote">
       Voice recognition requires microphone access &mdash; if it's
-      unavailable, use the text box instead.
+      unavailable, use the text box instead. Weather uses your device
+      location (if allowed) or a city you name, e.g. "weather in Chennai".
     </p>
   </main>
 

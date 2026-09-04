@@ -110,6 +110,25 @@ The chatbot response for a matched intent is chosen at random from that intent's
 - **Live link**: **https://lively-smoke-01c7d2900.3.azurestaticapps.net**
 - Verified end-to-end on the live deployment: page loads, model/vocab/classes/intents all fetch correctly, `/api/get-speech-token` returns a valid short-lived token without exposing the Speech key, microphone-based recognition via the Azure Speech SDK correctly transcribes speech and produces a matching intent + response, and the text-input fallback works as well.
 
+## 8a. Smart-Answers Layer & UI Improvements (post-deployment addition)
+After the initial deployment, the web app was extended with:
+- **A rule-based "smart answers" intercept** in `web/app.js`, checked before
+  the NN classifier: live **weather** (via the free, keyless
+  [Open-Meteo](https://open-meteo.com) API, using device geolocation or a
+  named city), **current time**, **today's date**, and **simple arithmetic**
+  (evaluated with a small hand-written parser, no `eval`). These require
+  real/computed data the fixed-response NN classifier structurally can't
+  produce, so they deliberately sit *in front of*, not inside, the trained
+  model — `chatbot_model.py`, `train.py`, and `model/` are unchanged.
+- **UI/UX improvements**: live interim captions while speaking (via the
+  Speech SDK's `recognizing` event) with a stop/cancel control, a "thinking"
+  indicator while a reply is prepared, a clear-chat button, quick
+  suggestion chips (Weather / Time / Quick math / Joke / Help), input
+  disabled during in-flight requests, autofocus, and a mobile-friendly
+  sticky control bar.
+- No new Azure resources or secrets were required (Open-Meteo and the
+  browser Geolocation API are both keyless, client-side only).
+
 ## 9. Limitations & Future Work
 - The bag-of-words model has no notion of semantic similarity — out-of-vocabulary or very different phrasing can be misclassified (observed: nonsense input was occasionally matched to `greeting` with high confidence). A larger dataset or a pretrained sentence-embedding-based classifier would improve robustness.
 - The Azure Speech SDK for JavaScript requires microphone access and works in all modern browsers, but the free F0 Speech tier caps usage at 5 audio hours/month — sufficient for a lab demo, but a paid tier would be needed for production-scale usage.
