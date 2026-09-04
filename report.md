@@ -14,24 +14,29 @@ Develop, implement, and deploy an online voice-enabled chatbot that:
  User voice
      |
      v
-[Browser Web Speech API]  --(speech-to-text, client-side)-->  Recognized text (displayed)
-     |
+[Azure AI Speech SDK (JS, browser)]  --(speech-to-text, using a short-lived
+     |    ^                            token minted server-side)--> Recognized text (displayed)
+     |    | token
+     |    |
+     |  [Azure Function: /api/get-speech-token]
+     |  (Speech resource key kept as a secret Environment Variable
+     |   on the Static Web App — never sent to the client)
      v
 [Bag-of-Words vectorizer (JS)]  --(preprocessing)-->  Feature vector
      |
      v
 [Feedforward NN forward pass (hand-written JS,        --(intent classification)-->  Predicted intent + confidence
- using weights exported from the trained Keras model)]
+ using weights exported from the Azure ML-trained Keras model)]
      |
      v
 [Response selector]  --(random choice from matched intent)-->  Chatbot response (displayed)
 ```
 
-- **Speech Recognition**: Browser-native `SpeechRecognition` / `webkitSpeechRecognition` API (Web Speech API). Runs client-side in the user's browser (best support in Chrome/Edge); transcribes spoken audio to text with no external API key required. A manual text-input fallback is provided for browsers without support (e.g. Firefox).
-- **Deep Learning model**: A feedforward neural network built with Keras/TensorFlow for intent classification, trained offline in Python on a custom dataset of intents.
-- **Web app / deployment**: The trained model's weights are exported to JSON (`export_web_model.py`) and the forward pass (matrix multiply + ReLU + softmax) is reproduced in a small hand-written JavaScript module. Combined with the Web Speech API and a plain HTML/CSS/JS UI, the entire app runs client-side with **no backend server** — deployed as a static site on **GitHub Pages** (free).
+- **Speech Recognition**: **Azure AI Speech** (Cognitive Services Speech resource, F0 free tier), accessed via the Speech SDK for JavaScript in the browser. The browser first calls `/api/get-speech-token` — an Azure Function that exchanges the Speech resource's secret key (stored as an Environment Variable on the Static Web App, never in source control or client code) for a short-lived (10-minute) authorization token — then uses that token to run `recognizeOnceAsync`. A manual text-input fallback is always available.
+- **Deep Learning model**: A feedforward neural network built with Keras/TensorFlow for intent classification, trained on **Azure Machine Learning** (workspace `voice-chatbot-ml`, run on a Compute Instance) on a custom dataset of intents.
+- **Web app / deployment**: The trained model's weights are exported to JSON (`export_web_model.py`) and the forward pass (matrix multiply + ReLU + softmax) is reproduced in a small hand-written JavaScript module — no TensorFlow.js runtime needed client-side. The static site (`web/`) plus the token-minting Azure Function (`api/`) are deployed together as an **Azure Static Web App** (Free tier), auto-built and deployed via a GitHub Actions workflow on every push to `main`.
 
-  *Note*: Hugging Face Spaces was the original planned host, but Spaces now requires a paid plan to run Gradio/Docker apps (free tier is Static-only). Re-architecting to a fully static, client-side app avoided any hosting cost while keeping the same DL model and preprocessing logic — verified to produce numerically identical predictions to the Python model (see §7).
+  *Note*: The original plan used the browser's built-in Web Speech API and GitHub Pages hosting (after an earlier pivot away from Hugging Face Spaces, which requires a paid plan to run Gradio/Docker apps). The project was further migrated to use Azure services for speech recognition, model training, and hosting end-to-end, using an existing Azure subscription. The client-side intent-classification logic (bag-of-words + hand-written JS forward pass) was kept unchanged through both pivots — verified to produce numerically identical predictions to the Python model (see §7).
 
 ## 3. Dataset
 A custom-built dataset (`data/intents.json`) of **15 intents**, each with several example training phrases ("patterns") and candidate responses — a standard approach for small-scale intent-based chatbots.
@@ -72,12 +77,12 @@ Input (99-dim bag-of-words vector)
 Dropout layers (0.5) are used after each hidden layer to reduce overfitting, given the small dataset size.
 
 ## 6. Training Results
-Trained locally via `train.py` on the 69 training patterns (tokenizer simplified to a plain regex word-split, dropping NLTK lemmatization, so the exact same preprocessing logic could be reproduced in JavaScript for the client-side deployment):
+Trained via `train.py`, executed on an **Azure Machine Learning Compute Instance** (workspace `voice-chatbot-ml`) on the 69 training patterns (tokenizer simplified to a plain regex word-split, dropping NLTK lemmatization, so the exact same preprocessing logic could be reproduced in JavaScript for the client-side deployment):
 
 | Metric | Value |
 |---|---|
 | Final training accuracy | **98.55%** |
-| Final training loss | **0.0497** |
+| Final training loss | **0.0616** |
 | Epochs | 200 |
 | Training samples | 69 |
 | Vocabulary size | 99 |
@@ -99,11 +104,13 @@ The chatbot response for a matched intent is chosen at random from that intent's
 | "when are you available" | hours | 1.0000 | 1.0000 |
 
 ## 8. Deployment
-- **Platform**: GitHub Pages (static site, free) — no backend server, all inference runs client-side.
-- **Live link**: _[fill in after deployment]_
-- Verified locally end-to-end before deployment: static file server serving `web/`, all assets (model weights, vocab, classes, intents) load correctly, and the Python-trained model's predictions were cross-checked bit-for-bit against the JavaScript forward pass (§7).
+- **Platform**: Azure Static Web Apps (Free tier) — hosts the static site (`web/`) and a companion Azure Function (`api/get-speech-token`) together, auto-deployed via a GitHub Actions workflow on every push to `main`. Model inference and intent classification run entirely client-side (no backend needed for that part); the only server-side piece is minting short-lived Azure Speech tokens so the Speech resource key is never exposed to the browser.
+- **Training**: Azure Machine Learning (workspace `voice-chatbot-ml`), Compute Instance, `train.py` + `export_web_model.py`.
+- **Speech recognition**: Azure AI Speech resource (`voice-chatbot-speech`, F0 free tier, East US region).
+- **Live link**: **https://lively-smoke-01c7d2900.3.azurestaticapps.net**
+- Verified end-to-end on the live deployment: page loads, model/vocab/classes/intents all fetch correctly, `/api/get-speech-token` returns a valid short-lived token without exposing the Speech key, microphone-based recognition via the Azure Speech SDK correctly transcribes speech and produces a matching intent + response, and the text-input fallback works as well.
 
 ## 9. Limitations & Future Work
 - The bag-of-words model has no notion of semantic similarity — out-of-vocabulary or very different phrasing can be misclassified (observed: nonsense input was occasionally matched to `greeting` with high confidence). A larger dataset or a pretrained sentence-embedding-based classifier would improve robustness.
-- Web Speech API accuracy and browser support (Chrome/Edge only) is a client-side constraint; a server-side ASR model (e.g. Whisper) would broaden browser compatibility at the cost of added latency/hosting complexity.
+- The Azure Speech SDK for JavaScript requires microphone access and works in all modern browsers, but the free F0 Speech tier caps usage at 5 audio hours/month — sufficient for a lab demo, but a paid tier would be needed for production-scale usage.
 - The dataset is small and hand-authored; a production system would benefit from a larger, more diverse intents dataset.
