@@ -328,6 +328,61 @@ function isDateQuery(msg) {
   return /\b(what(?:'s| is)(?: today's)? date|what day is it|today's date|what is the date)\b/i.test(msg);
 }
 
+// Maps a place name mentioned in the message to a real IANA time zone, so
+// "time in Australia" answers with Australia's clock, not the browser's.
+// Sorted longest-key-first so "new york" matches before a shorter overlap.
+const TIMEZONE_ALIASES = {
+  "new zealand": { tz: "Pacific/Auckland", label: "Auckland, New Zealand" },
+  "los angeles": { tz: "America/Los_Angeles", label: "Los Angeles" },
+  california: { tz: "America/Los_Angeles", label: "California" },
+  "new york": { tz: "America/New_York", label: "New York" },
+  australia: { tz: "Australia/Sydney", label: "Sydney, Australia" },
+  sydney: { tz: "Australia/Sydney", label: "Sydney" },
+  melbourne: { tz: "Australia/Melbourne", label: "Melbourne" },
+  perth: { tz: "Australia/Perth", label: "Perth" },
+  india: { tz: "Asia/Kolkata", label: "India" },
+  chennai: { tz: "Asia/Kolkata", label: "Chennai" },
+  mumbai: { tz: "Asia/Kolkata", label: "Mumbai" },
+  delhi: { tz: "Asia/Kolkata", label: "Delhi" },
+  bangalore: { tz: "Asia/Kolkata", label: "Bangalore" },
+  london: { tz: "Europe/London", label: "London" },
+  uk: { tz: "Europe/London", label: "the UK" },
+  england: { tz: "Europe/London", label: "England" },
+  japan: { tz: "Asia/Tokyo", label: "Japan" },
+  tokyo: { tz: "Asia/Tokyo", label: "Tokyo" },
+  dubai: { tz: "Asia/Dubai", label: "Dubai" },
+  uae: { tz: "Asia/Dubai", label: "the UAE" },
+  singapore: { tz: "Asia/Singapore", label: "Singapore" },
+  germany: { tz: "Europe/Berlin", label: "Germany" },
+  france: { tz: "Europe/Paris", label: "France" },
+  china: { tz: "Asia/Shanghai", label: "China" },
+  russia: { tz: "Europe/Moscow", label: "Moscow, Russia" },
+  brazil: { tz: "America/Sao_Paulo", label: "Brazil" },
+  canada: { tz: "America/Toronto", label: "Toronto, Canada" },
+  usa: { tz: "America/New_York", label: "the USA (Eastern)" },
+};
+const TIMEZONE_KEYS = Object.keys(TIMEZONE_ALIASES).sort((a, b) => b.length - a.length);
+
+function extractTimezone(msg) {
+  const lower = msg.toLowerCase();
+  for (const key of TIMEZONE_KEYS) {
+    if (new RegExp(`\\b${key}\\b`).test(lower)) {
+      return TIMEZONE_ALIASES[key];
+    }
+  }
+  return null;
+}
+
+function timeInZone(tz) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  }).format(new Date());
+}
+
 // --- Simple arithmetic: safe hand-rolled recursive-descent parser (no eval) ---
 function tryExtractMathExpression(msg) {
   const stripped = msg
@@ -490,7 +545,16 @@ async function handleWeatherQuery(msg) {
 // Ordered intercepts: first match wins. handle() may be sync or async and
 // returns a structured reply object.
 const smartAnswers = [
-  { test: isTimeQuery, handle: () => ({ text: `It's currently ${new Date().toLocaleTimeString()}.` }) },
+  {
+    test: isTimeQuery,
+    handle: (msg) => {
+      const zone = extractTimezone(msg);
+      if (zone) {
+        return { text: `It's currently ${timeInZone(zone.tz)} in ${zone.label}.` };
+      }
+      return { text: `It's currently ${new Date().toLocaleTimeString()}.` };
+    },
+  },
   {
     test: isDateQuery,
     handle: () => ({
