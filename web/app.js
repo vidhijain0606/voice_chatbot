@@ -454,6 +454,39 @@ function evalMathExpression(expr) {
   return result;
 }
 
+// --- Extended math: square/cube roots, powers, percentages. These use plain
+// English patterns (not the digits-only grammar above) and are checked
+// first, so questions like "square root of 144" never fall through to the
+// NN classifier -- which has no way to compute an answer and would just
+// guess the nearest-sounding trained intent. ---
+function trySpecialMath(msg) {
+  const lower = msg.toLowerCase();
+  const num = "(-?\\d+(?:\\.\\d+)?)";
+  let m;
+
+  if ((m = lower.match(new RegExp(`square root of\\s*${num}`)))) {
+    return { expr: `√${m[1]}`, result: Math.sqrt(parseFloat(m[1])) };
+  }
+  if ((m = lower.match(new RegExp(`cube root of\\s*${num}`)))) {
+    return { expr: `∛${m[1]}`, result: Math.cbrt(parseFloat(m[1])) };
+  }
+  if ((m = lower.match(new RegExp(`${num}\\s*(?:to the power of|raised to(?: the power of)?)\\s*${num}`)))) {
+    return { expr: `${m[1]}^${m[2]}`, result: Math.pow(parseFloat(m[1]), parseFloat(m[2])) };
+  }
+  if ((m = lower.match(new RegExp(`${num}\\s*squared`)))) {
+    const n = parseFloat(m[1]);
+    return { expr: `${m[1]}²`, result: n * n };
+  }
+  if ((m = lower.match(new RegExp(`${num}\\s*cubed`)))) {
+    const n = parseFloat(m[1]);
+    return { expr: `${m[1]}³`, result: n * n * n };
+  }
+  if ((m = lower.match(new RegExp(`${num}\\s*%\\s*of\\s*${num}`))) || (m = lower.match(new RegExp(`${num}\\s*percent of\\s*${num}`)))) {
+    return { expr: `${m[1]}% of ${m[2]}`, result: (parseFloat(m[1]) / 100) * parseFloat(m[2]) };
+  }
+  return null;
+}
+
 // --- Weather (Open-Meteo: free, keyless, CORS-enabled) ---
 const WEATHER_CODES = {
   0: "clear sky", 1: "mostly clear", 2: "partly cloudy", 3: "overcast",
@@ -567,6 +600,17 @@ const smartAnswers = [
     }),
   },
   { test: isWeatherQuery, handle: handleWeatherQuery },
+  {
+    test: (msg) => trySpecialMath(msg) !== null,
+    handle: (msg) => {
+      const r = trySpecialMath(msg);
+      if (!Number.isFinite(r.result)) {
+        return { text: `I couldn't work that out — try something like "square root of 144" or "12 to the power of 2".` };
+      }
+      const rounded = Math.round(r.result * 1e6) / 1e6;
+      return { math: { expr: r.expr, result: String(rounded) } };
+    },
+  },
   {
     test: (msg) => tryExtractMathExpression(msg) !== null,
     handle: (msg) => {
