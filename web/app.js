@@ -1,6 +1,6 @@
 /**
  * app.js
- * Voice chatbot:
+ * Voice chatbot dashboard:
  *  - Azure AI Speech (Speech SDK for JavaScript) for voice -> text. The
  *    browser fetches a short-lived token from /api/get-speech-token (an
  *    Azure Function -- see api/get-speech-token/index.js) so the Speech
@@ -12,15 +12,18 @@
  *  - Bag-of-words preprocessing mirrors chatbot_model.py's tokenize()
  *    exactly (lowercase, regex word split on [a-z']+) so predictions match
  *    the Python-trained model bit-for-bit.
- *  - A small rule-based "smart answers" layer (below) intercepts messages
- *    it can answer with real, live/computed data -- weather, time, date,
- *    simple arithmetic -- before falling through to the NN classifier.
- *    This is deliberately NOT part of the trained model: the NN only ever
- *    picks from a fixed list of canned responses per intent, which can't
- *    express dynamic answers like "it's 4:32 PM" or today's actual weather.
+ *  - A small rule-based "smart answers" layer intercepts messages it can
+ *    answer with real, live/computed data -- weather, time, date, simple
+ *    arithmetic -- before falling through to the NN classifier. Weather and
+ *    math render as "telemetry cards" instead of plain text.
+ *  - Session history (sidebar) is kept in localStorage so previous
+ *    conversations survive a page reload, grouped by Today / Yesterday /
+ *    Last 7 Days / Older.
  */
 
 const CONFIDENCE_THRESHOLD = 0.5;
+const HISTORY_KEY = "voicebot_history_v1";
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 let weights = null; // { layers: [{ w, b, activation }, ...] }
 let vocab = [];
@@ -28,43 +31,208 @@ let classes = [];
 let intents = null;
 let busy = false; // true while a reply (incl. any async fetch) is being prepared
 
-const chatWindow = document.getElementById("chat-window");
+// active session: not persisted until "New session" archives it
+let active = { id: "active", title: "New session", createdAt: Date.now(), messages: [] };
+let conversations = loadHistory(); // archived sessions, newest first
+
+const sidebar = document.getElementById("sidebar");
+const collapseBtn = document.getElementById("collapse-btn");
+const newSessionBtn = document.getElementById("new-session-btn");
+const historyEl = document.getElementById("history");
+const feedInner = document.getElementById("feed-inner");
+const systemBanner = document.getElementById("system-banner");
 const textInput = document.getElementById("text-input");
 const speakBtn = document.getElementById("speak-btn");
 const sendBtn = document.getElementById("send-btn");
 const clearBtn = document.getElementById("clear-btn");
+const exportBtn = document.getElementById("export-btn");
 const statusEl = document.getElementById("status");
 const chipsEl = document.getElementById("suggestion-chips");
 const brandDot = document.getElementById("brand-dot");
+const settingsBtn = document.getElementById("settings-btn");
+const settingsPop = document.getElementById("settings-pop");
+const micSelect = document.getElementById("mic-select");
+const langSelect = document.getElementById("lang-select");
+
+const ICON_SUN =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>';
+const ICON_CALC =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h.01M12 19h.01M16 19h.01"></path></svg>';
+const ICON_CHAT =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>';
+const ICON_CHEVRON_L =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg>';
+const ICON_CHEVRON_R =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>';
+
+collapseBtn.innerHTML = ICON_CHEVRON_L;
 
 function setStatus(text) {
   statusEl.textContent = text;
 }
 
-function timestamp() {
-  return new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+function fmtTime(d) {
+  return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 
-function addBubble(role, text, meta) {
-  const bubble = document.createElement("div");
-  bubble.className = `bubble ${role}`;
-  bubble.textContent = text;
-  const metaEl = document.createElement("span");
-  metaEl.className = "meta";
-  metaEl.textContent = meta ? `${meta}  ${timestamp()}` : timestamp();
-  bubble.appendChild(metaEl);
-  chatWindow.appendChild(bubble);
-  chatWindow.scrollTop = chatWindow.scrollHeight;
-  return bubble;
+function escapeHtml(s) {
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
 }
 
-function addThinkingBubble() {
-  const bubble = document.createElement("div");
-  bubble.className = "bubble bot thinking";
-  bubble.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
-  chatWindow.appendChild(bubble);
-  chatWindow.scrollTop = chatWindow.scrollHeight;
-  return bubble;
+// ============================================================================
+// Persistence (sidebar history)
+// ============================================================================
+
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (err) {
+    console.error("Failed to load history:", err);
+    return [];
+  }
+}
+
+function saveHistory() {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(conversations));
+  } catch (err) {
+    console.error("Failed to save history:", err);
+  }
+}
+
+function groupLabel(createdAt) {
+  const diffDays = Math.floor((Date.now() - createdAt) / DAY_MS);
+  if (diffDays <= 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays <= 7) return "Last 7 Days";
+  return "Older";
+}
+
+function relTime(createdAt) {
+  const diffH = Math.round((Date.now() - createdAt) / (60 * 60 * 1000));
+  if (diffH < 1) return "just now";
+  if (diffH < 24) return `${diffH}h ago`;
+  return `${Math.round(diffH / 24)}d ago`;
+}
+
+function renderHistory() {
+  historyEl.innerHTML = "";
+  if (!conversations.length) {
+    const empty = document.createElement("div");
+    empty.className = "hist-empty";
+    empty.textContent = "No previous sessions yet.";
+    historyEl.appendChild(empty);
+    return;
+  }
+  const groups = { Today: [], Yesterday: [], "Last 7 Days": [], Older: [] };
+  conversations.forEach((c) => groups[groupLabel(c.createdAt)].push(c));
+  ["Today", "Yesterday", "Last 7 Days", "Older"].forEach((g) => {
+    if (!groups[g].length) return;
+    const label = document.createElement("div");
+    label.className = "group-label";
+    label.textContent = g;
+    historyEl.appendChild(label);
+    groups[g].forEach((c) => {
+      const item = document.createElement("div");
+      item.className = "hist-item" + (c.id === active.id ? " active" : "");
+      item.innerHTML =
+        ICON_CHAT +
+        `<span class="hist-text"><div class="hist-title">${escapeHtml(c.title)}</div><div class="hist-meta">${relTime(
+          c.createdAt
+        )}</div></span>`;
+      item.addEventListener("click", () => loadConversation(c.id));
+      historyEl.appendChild(item);
+    });
+  });
+}
+
+function loadConversation(id) {
+  const conv = conversations.find((c) => c.id === id);
+  if (!conv) return;
+  active = { id: conv.id, title: conv.title, createdAt: conv.createdAt, messages: conv.messages.slice() };
+  renderFeed();
+}
+
+// ============================================================================
+// Chat rendering
+// ============================================================================
+
+function weatherIconSvg() {
+  return ICON_SUN;
+}
+
+function renderMessageNode(m) {
+  const row = document.createElement("div");
+  row.className = `msg-row ${m.role}`;
+
+  if (m.role === "user") {
+    const bubble = document.createElement("div");
+    bubble.className = "msg-bubble user";
+    bubble.textContent = m.text;
+    row.appendChild(bubble);
+  } else if (m.weather) {
+    const card = document.createElement("div");
+    card.className = "msg-bubble bot";
+    card.innerHTML =
+      `<div class="telemetry-card"><div class="tc-weather">` +
+      `<div class="tc-icon">${weatherIconSvg()}</div>` +
+      `<div class="tc-main"><div class="tc-temp">${m.weather.temp}&deg;C</div>` +
+      `<div class="tc-cond">${escapeHtml(m.weather.cond)} &middot; ${escapeHtml(m.weather.place)}</div></div>` +
+      `</div><div class="tc-stats">` +
+      `<div><div class="tc-stat-label">wind</div><div class="tc-stat-value">${m.weather.wind} km/h</div></div>` +
+      `<div><div class="tc-stat-label">location</div><div class="tc-stat-value">${escapeHtml(m.weather.place)}</div></div>` +
+      `<div><div class="tc-stat-label">updated</div><div class="tc-stat-value">${m.time}</div></div>` +
+      `</div></div>`;
+    row.appendChild(card);
+  } else if (m.math) {
+    const card = document.createElement("div");
+    card.className = "msg-bubble bot";
+    card.innerHTML =
+      `<div class="telemetry-card"><div class="tc-math">` +
+      `<div class="tc-icon">${ICON_CALC}</div>` +
+      `<div><div class="tc-math-expr">${escapeHtml(m.math.expr)} =</div>` +
+      `<div class="tc-math-result">${escapeHtml(m.math.result)}</div></div>` +
+      `</div></div>`;
+    row.appendChild(card);
+  } else {
+    const bubble = document.createElement("div");
+    bubble.className = "msg-bubble bot";
+    bubble.textContent = m.text;
+    row.appendChild(bubble);
+  }
+
+  const t = document.createElement("span");
+  t.className = "msg-time";
+  t.textContent = m.time;
+  row.appendChild(t);
+
+  return row;
+}
+
+function renderFeed() {
+  feedInner.innerHTML = "";
+  feedInner.appendChild(systemBanner);
+  active.messages.forEach((m) => feedInner.appendChild(renderMessageNode(m)));
+  feedInner.appendChild(statusEl);
+  scrollFeedToBottom();
+  renderHistory();
+}
+
+function scrollFeedToBottom() {
+  const scroller = feedInner.parentElement;
+  scroller.scrollTop = scroller.scrollHeight;
+}
+
+function addThinkingRow() {
+  const row = document.createElement("div");
+  row.className = "msg-row bot";
+  row.innerHTML = '<div class="thinking"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
+  feedInner.insertBefore(row, statusEl);
+  scrollFeedToBottom();
+  return row;
 }
 
 function setBusy(isBusy) {
@@ -73,6 +241,10 @@ function setBusy(isBusy) {
   speakBtn.disabled = isBusy;
   textInput.disabled = isBusy;
 }
+
+// ============================================================================
+// NN intent classifier (unchanged model, trained via Azure ML)
+// ============================================================================
 
 // Must match chatbot_model.py's tokenize(): lowercase, split on [a-z']+.
 function tokenize(sentence) {
@@ -145,12 +317,10 @@ function predictIntent(sentence) {
 
 // ============================================================================
 // Smart-answers intercept layer: weather, time, date, simple math.
-// Each handler is tried in order; the first whose test() matches wins and
-// its (possibly async) handle() supplies the reply text directly, bypassing
-// the NN classifier. Anything that matches nothing falls through to the NN.
+// Each returns a structured reply: { text } or { weather:{...} } or
+// { math:{...} }, rendered as a telemetry card for weather/math.
 // ============================================================================
 
-// --- Time / date (fully local, no network) ---
 function isTimeQuery(msg) {
   return /\b(what(?:'s| is) the time|current time|what time is it|tell me the time)\b/i.test(msg);
 }
@@ -304,29 +474,33 @@ async function handleWeatherQuery(msg) {
     }
     const w = await fetchWeather(lat, lon);
     const desc = WEATHER_CODES[w.code] || "unknown conditions";
-    return `It's currently ${w.temp}°C and ${desc} in ${placeName} (wind ${w.wind} km/h).`;
+    return { weather: { temp: w.temp, cond: desc, wind: w.wind, place: placeName } };
   } catch (err) {
     console.error("Weather lookup failed:", err);
     if (!city) {
-      return `I couldn't get your location for the weather. Try "weather in <city>" instead, or check your browser's location permission.`;
+      return {
+        text: `I couldn't get your location for the weather. Try "weather in <city>" instead, or check your browser's location permission.`,
+      };
     }
     // Fall back to the trained NN's canned weather_smalltalk response.
-    return getResponse("weather_smalltalk");
+    return { text: getResponse("weather_smalltalk") };
   }
 }
 
-// Ordered intercepts: first match wins. handle() may be sync or async.
+// Ordered intercepts: first match wins. handle() may be sync or async and
+// returns a structured reply object.
 const smartAnswers = [
-  { test: isTimeQuery, handle: () => `It's currently ${new Date().toLocaleTimeString()}.` },
+  { test: isTimeQuery, handle: () => ({ text: `It's currently ${new Date().toLocaleTimeString()}.` }) },
   {
     test: isDateQuery,
-    handle: () =>
-      `Today is ${new Date().toLocaleDateString(undefined, {
+    handle: () => ({
+      text: `Today is ${new Date().toLocaleDateString(undefined, {
         weekday: "long",
         year: "numeric",
         month: "long",
         day: "numeric",
       })}.`,
+    }),
   },
   { test: isWeatherQuery, handle: handleWeatherQuery },
   {
@@ -337,9 +511,9 @@ const smartAnswers = [
         const result = evalMathExpression(expr);
         if (!Number.isFinite(result)) throw new Error("Non-finite result");
         const rounded = Math.round(result * 1e6) / 1e6;
-        return `${expr.trim()} = ${rounded}`;
+        return { math: { expr: expr.trim(), result: String(rounded) } };
       } catch (err) {
-        return `I couldn't work that out — try a simple expression like "12 * 7".`;
+        return { text: `I couldn't work that out — try a simple expression like "12 * 7".` };
       }
     },
   },
@@ -354,36 +528,160 @@ async function findSmartAnswer(message) {
   return null;
 }
 
+// ============================================================================
+// Message handling
+// ============================================================================
+
 async function handleUserMessage(message) {
   if (busy) return;
   const trimmed = message.trim();
   if (!trimmed) return;
-  addBubble("user", trimmed);
+
+  const userTime = fmtTime(new Date());
+  active.messages.push({ role: "user", text: trimmed, time: userTime });
+  renderFeed();
   textInput.value = "";
   setBusy(true);
 
-  const thinking = addThinkingBubble();
+  const thinking = addThinkingRow();
   try {
-    const smartReply = await findSmartAnswer(trimmed);
-    thinking.remove();
-    if (smartReply !== null) {
-      addBubble("bot", smartReply);
+    const smart = await findSmartAnswer(trimmed);
+    let reply;
+    if (smart !== null) {
+      reply = smart;
     } else {
       const { tag, confidence } = predictIntent(trimmed);
-      const reply = getResponse(tag);
-      addBubble("bot", reply, `intent=${tag} conf=${confidence.toFixed(2)}`);
+      reply = { text: getResponse(tag) };
     }
+    thinking.remove();
+    reply.role = "bot";
+    reply.time = fmtTime(new Date());
+    active.messages.push(reply);
+    renderFeed();
+    if (active.id !== "active") persistActiveEdits();
   } catch (err) {
     console.error(err);
     thinking.remove();
-    addBubble("bot", "Sorry, something went wrong answering that.");
+    active.messages.push({ role: "bot", text: "Sorry, something went wrong answering that.", time: fmtTime(new Date()) });
+    renderFeed();
   } finally {
     setBusy(false);
     textInput.focus();
   }
 }
 
-// --- Azure AI Speech (Speech SDK for JavaScript) ---
+function persistActiveEdits() {
+  const idx = conversations.findIndex((c) => c.id === active.id);
+  if (idx !== -1) {
+    conversations[idx].messages = active.messages.slice();
+    saveHistory();
+  }
+}
+
+// ============================================================================
+// Sidebar actions
+// ============================================================================
+
+let sidebarCollapsed = false;
+collapseBtn.addEventListener("click", () => {
+  sidebarCollapsed = !sidebarCollapsed;
+  sidebar.classList.toggle("collapsed", sidebarCollapsed);
+  collapseBtn.innerHTML = sidebarCollapsed ? ICON_CHEVRON_R : ICON_CHEVRON_L;
+});
+
+newSessionBtn.addEventListener("click", () => {
+  if (active.messages.length > 0) {
+    const firstUser = active.messages.find((m) => m.role === "user");
+    const title = firstUser ? firstUser.text.slice(0, 40) : "Conversation";
+    if (active.id === "active") {
+      conversations.unshift({ id: `c-${Date.now()}`, title, createdAt: active.createdAt, messages: active.messages.slice() });
+      saveHistory();
+    }
+  }
+  active = { id: "active", title: "New session", createdAt: Date.now(), messages: [] };
+  renderFeed();
+  setStatus("new session started.");
+  textInput.focus();
+});
+
+clearBtn.addEventListener("click", () => {
+  active.messages = [];
+  renderFeed();
+  setStatus("session cleared.");
+});
+
+exportBtn.addEventListener("click", () => {
+  if (!active.messages.length) {
+    setStatus("nothing to export yet.");
+    return;
+  }
+  const lines = active.messages.map((m) => {
+    const who = m.role === "user" ? "You" : "Voicebot";
+    const content =
+      m.text ||
+      (m.weather ? `${m.weather.temp}°C, ${m.weather.cond} in ${m.weather.place} (wind ${m.weather.wind} km/h)` : "") ||
+      (m.math ? `${m.math.expr} = ${m.math.result}` : "");
+    return `[${m.time}] ${who}: ${content}`;
+  });
+  const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "voicebot-transcript.txt";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  setStatus("transcript exported.");
+});
+
+// ============================================================================
+// Settings: real mic + language selection, wired into the Speech SDK
+// ============================================================================
+
+let selectedMicId = "";
+let recognitionLanguage = "en-US";
+
+async function populateMicList() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const mics = devices.filter((d) => d.kind === "audioinput");
+    micSelect.innerHTML = '<option value="">Default microphone</option>';
+    mics.forEach((d, i) => {
+      const opt = document.createElement("option");
+      opt.value = d.deviceId;
+      opt.textContent = d.label || `Microphone ${i + 1}`;
+      micSelect.appendChild(opt);
+    });
+  } catch (err) {
+    console.error("Could not list microphones:", err);
+  }
+}
+
+micSelect.addEventListener("change", () => {
+  selectedMicId = micSelect.value;
+});
+langSelect.addEventListener("change", () => {
+  recognitionLanguage = langSelect.value;
+});
+
+settingsBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  const opening = !settingsPop.classList.contains("open");
+  settingsPop.classList.toggle("open");
+  if (opening) populateMicList();
+});
+document.addEventListener("click", (e) => {
+  if (!settingsPop.contains(e.target) && e.target !== settingsBtn) {
+    settingsPop.classList.remove("open");
+  }
+});
+
+// ============================================================================
+// Azure AI Speech (Speech SDK for JavaScript)
+// ============================================================================
+
 let cachedToken = null; // { token, region, fetchedAt }
 const TOKEN_TTL_MS = 9 * 60 * 1000; // tokens are valid 10 min; refresh a bit early
 let activeRecognizer = null;
@@ -402,15 +700,17 @@ async function getSpeechToken() {
 async function recognizeSpeechOnce() {
   const { token, region } = await getSpeechToken();
   const speechConfig = SpeechSDK.SpeechConfig.fromAuthorizationToken(token, region);
-  speechConfig.speechRecognitionLanguage = "en-US";
-  const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
+  speechConfig.speechRecognitionLanguage = recognitionLanguage;
+  const audioConfig = selectedMicId
+    ? SpeechSDK.AudioConfig.fromMicrophoneInput(selectedMicId)
+    : SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
   const recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
   activeRecognizer = recognizer;
 
   // Live interim captions while the user is still speaking.
   recognizer.recognizing = (_s, e) => {
     if (e.result && e.result.text) {
-      setStatus(`Listening: "${e.result.text}"`);
+      setStatus(`listening: "${e.result.text}"`);
     }
   };
 
@@ -473,24 +773,18 @@ textInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") handleUserMessage(textInput.value);
 });
 
-if (clearBtn) {
-  clearBtn.addEventListener("click", () => {
-    chatWindow.innerHTML = "";
-    setStatus("cleared.");
-    addBubble("bot", "Ready. Press to talk, or type a message below.");
-  });
-}
+chipsEl.addEventListener("click", (e) => {
+  const chip = e.target.closest("[data-message]");
+  if (!chip) return;
+  handleUserMessage(chip.dataset.message);
+});
 
-if (chipsEl) {
-  chipsEl.addEventListener("click", (e) => {
-    const chip = e.target.closest("[data-message]");
-    if (!chip) return;
-    handleUserMessage(chip.dataset.message);
-  });
-}
+// ============================================================================
+// Boot: load weights + vocab + classes + intents
+// ============================================================================
 
-// --- Boot: load weights + vocab + classes + intents ---
 async function init() {
+  renderFeed();
   try {
     const [weightsData, vocabData, classesData, intentsData] = await Promise.all([
       fetch("model/weights.json").then((r) => r.json()),
@@ -505,8 +799,7 @@ async function init() {
 
     sendBtn.disabled = false;
     setStatus("model loaded — press to talk, or type a message.");
-    if (brandDot) brandDot.classList.add("live");
-    addBubble("bot", "Ready. Press to talk, or type a message below.");
+    brandDot.classList.add("live");
     textInput.focus();
   } catch (err) {
     console.error(err);

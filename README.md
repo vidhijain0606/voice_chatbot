@@ -8,15 +8,31 @@ Web Apps**.
 **Live demo:** https://lively-smoke-01c7d2900.3.azurestaticapps.net
 
 ## How it works
-1. Click **🎤 Speak** — the browser fetches a short-lived token from `/api/get-speech-token` (an Azure Function) and uses the Azure Speech SDK for JavaScript to transcribe your voice to text, showing a live interim caption while you talk (click **⏹ Stop** to cancel).
+1. Press the mic button in the input dock — the browser fetches a short-lived token from `/api/get-speech-token` (an Azure Function) and uses the Azure Speech SDK for JavaScript to transcribe your voice to text, showing a live interim caption in the status log while you talk (press it again to cancel).
 2. The recognized text (or typed text) first passes through a small **smart-answers layer** (see below) that handles live weather, time, date, and quick math directly; anything else is run through a tiny hand-written neural-network forward pass, entirely in the browser (JavaScript), using the exact weights of the Keras model trained on Azure ML.
-3. A response for the predicted intent is displayed, alongside the recognized transcript and the model's confidence (smart-answers replies are shown without a confidence score, since they're computed, not classified).
-4. A manual text box is provided as a fallback (also useful if microphone access isn't available or Speech quota is exhausted), plus quick-suggestion chips (Weather / Time / Quick math / Joke / Help) to try things without typing.
+3. Weather and math replies render as **telemetry cards** (temperature/condition/wind, or expression → result); everything else renders as plain text.
+4. A manual text box is provided as a fallback (also useful if microphone access isn't available or Speech quota is exhausted), plus quick-suggestion chips (weather / time / quick math / joke / help) to try things without typing.
 
 Intent classification runs **client-side in the browser** — no server needed
 for that part, and it's instant/free. The only server-side piece is the
 Azure Function that mints a short-lived Speech token so the Speech
 resource's secret key never reaches client code.
+
+### Dashboard UI
+The app is a full dashboard rather than a single chat card:
+- **Sidebar** — a collapsible history of previous sessions, grouped into
+  Today / Yesterday / Last 7 Days / Older, persisted in the browser's
+  `localStorage` (no backend). "New session" archives the current
+  conversation and starts fresh; clicking a past session reloads it.
+- **Header actions** — Export transcript (downloads the active
+  conversation as a local `.txt` file, generated client-side), Clear
+  session (wipes the active conversation without archiving it), and a
+  Settings popover for the microphone and recognition language.
+- **Settings are real, not decorative** — the microphone dropdown lists
+  actual input devices via `navigator.mediaDevices.enumerateDevices()`
+  and is passed to `SpeechSDK.AudioConfig.fromMicrophoneInput(deviceId)`;
+  the language dropdown (English US/UK, Hindi) sets
+  `speechConfig.speechRecognitionLanguage` for the next recognition.
 
 ### Smart answers (weather, time, date, math)
 Before falling back to the trained intent classifier, `web/app.js` checks

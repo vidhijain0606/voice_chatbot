@@ -129,6 +129,17 @@ After the initial deployment, the web app was extended with:
 - No new Azure resources or secrets were required (Open-Meteo and the
   browser Geolocation API are both keyless, client-side only).
 
+## 8b. Dashboard Redesign (post-deployment addition)
+The single-card chat UI was rebuilt into a full dashboard: a collapsible
+sidebar with session history (grouped Today / Yesterday / Last 7 Days /
+Older, persisted in `localStorage`), header actions for exporting a
+transcript and clearing/starting sessions, a settings panel that wires
+real microphone and recognition-language choices into the Speech SDK, and
+"telemetry cards" for weather and math replies instead of plain sentences.
+The underlying speech recognition, NN intent classifier, and smart-answers
+layer (§8a) are unchanged — this was a UI/UX layer rebuild, not a model or
+architecture change, so no retraining or new Azure resources were needed.
+
 ## 9. Limitations & Future Work
 - The bag-of-words model has no notion of semantic similarity — out-of-vocabulary or very different phrasing can be misclassified (observed: nonsense input was occasionally matched to `greeting` with high confidence). A larger dataset or a pretrained sentence-embedding-based classifier would improve robustness.
 - The Azure Speech SDK for JavaScript requires microphone access and works in all modern browsers, but the free F0 Speech tier caps usage at 5 audio hours/month — sufficient for a lab demo, but a paid tier would be needed for production-scale usage.
