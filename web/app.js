@@ -35,21 +35,24 @@ const sendBtn = document.getElementById("send-btn");
 const clearBtn = document.getElementById("clear-btn");
 const statusEl = document.getElementById("status");
 const chipsEl = document.getElementById("suggestion-chips");
+const brandDot = document.getElementById("brand-dot");
 
 function setStatus(text) {
   statusEl.textContent = text;
+}
+
+function timestamp() {
+  return new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 
 function addBubble(role, text, meta) {
   const bubble = document.createElement("div");
   bubble.className = `bubble ${role}`;
   bubble.textContent = text;
-  if (meta) {
-    const metaEl = document.createElement("span");
-    metaEl.className = "meta";
-    metaEl.textContent = meta;
-    bubble.appendChild(metaEl);
-  }
+  const metaEl = document.createElement("span");
+  metaEl.className = "meta";
+  metaEl.textContent = meta ? `${meta}  ${timestamp()}` : timestamp();
+  bubble.appendChild(metaEl);
   chatWindow.appendChild(bubble);
   chatWindow.scrollTop = chatWindow.scrollHeight;
   return bubble;
@@ -368,7 +371,7 @@ async function handleUserMessage(message) {
     } else {
       const { tag, confidence } = predictIntent(trimmed);
       const reply = getResponse(tag);
-      addBubble("bot", reply, `intent: ${tag}, confidence: ${confidence.toFixed(2)}`);
+      addBubble("bot", reply, `intent=${tag} conf=${confidence.toFixed(2)}`);
     }
   } catch (err) {
     console.error(err);
@@ -443,8 +446,7 @@ function stopListening() {
     activeRecognizer = null;
   }
   speakBtn.classList.remove("listening");
-  speakBtn.textContent = "🎤 Speak";
-  setStatus("Cancelled.");
+  setStatus("cancelled.");
 }
 
 speakBtn.addEventListener("click", async () => {
@@ -453,20 +455,16 @@ speakBtn.addEventListener("click", async () => {
     return;
   }
   speakBtn.classList.add("listening");
-  speakBtn.textContent = "⏹ Stop";
-  setStatus("Listening... speak now.");
+  setStatus("listening — speak now…");
   try {
     const transcript = await recognizeSpeechOnce();
-    speakBtn.classList.remove("listening");
-    speakBtn.textContent = "🎤 Speak";
-    setStatus(`Recognized: "${transcript}"`);
+    setStatus(`recognized: "${transcript}"`);
     await handleUserMessage(transcript);
   } catch (err) {
     console.error(err);
-    setStatus(`Speech recognition error: ${err.message || err}`);
+    setStatus(`speech error: ${err.message || err}`);
   } finally {
     speakBtn.classList.remove("listening");
-    speakBtn.textContent = "🎤 Speak";
   }
 });
 
@@ -478,8 +476,8 @@ textInput.addEventListener("keydown", (e) => {
 if (clearBtn) {
   clearBtn.addEventListener("click", () => {
     chatWindow.innerHTML = "";
-    setStatus("Chat cleared.");
-    addBubble("bot", "Hi! I'm ready. Click the mic and talk, or type a message below.");
+    setStatus("cleared.");
+    addBubble("bot", "Ready. Press to talk, or type a message below.");
   });
 }
 
@@ -506,12 +504,13 @@ async function init() {
     intents = intentsData;
 
     sendBtn.disabled = false;
-    setStatus("Model loaded. Click 🎤 Speak or type a message.");
-    addBubble("bot", "Hi! I'm ready. Click the mic and talk, or type a message below.");
+    setStatus("model loaded — press to talk, or type a message.");
+    if (brandDot) brandDot.classList.add("live");
+    addBubble("bot", "Ready. Press to talk, or type a message below.");
     textInput.focus();
   } catch (err) {
     console.error(err);
-    setStatus("Failed to load the model. Please refresh the page.");
+    setStatus("failed to load the model — please refresh the page.");
   }
 }
 

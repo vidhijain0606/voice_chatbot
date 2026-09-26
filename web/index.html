@@ -3,50 +3,64 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Voice-Enabled Chatbot</title>
+<title>Voicebot — speech &amp; intent panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <main class="app">
-    <header>
-      <div class="title-row">
-        <h1>🎤 Voice-Enabled Chatbot</h1>
-        <button id="clear-btn" class="ghost-btn" title="Clear chat">Clear chat</button>
+  <main class="panel">
+    <header class="panel-header">
+      <div class="brand">
+        <span class="brand-dot" id="brand-dot" aria-hidden="true"></span>
+        <h1>Voicebot</h1>
       </div>
-      <p class="subtitle">
-        Speech Recognition (Azure AI Speech) + Deep Learning intent
-        classification (neural network trained via Azure Machine Learning,
-        running client-side), plus live weather, time, date and quick math.
-        Hosted on Azure Static Web Apps.
-      </p>
+      <button id="clear-btn" class="text-btn" title="Clear the conversation">clear</button>
     </header>
+    <p class="deck">
+      Speech recognition and an on-device intent model, with live weather,
+      time and math answered directly.
+    </p>
 
-    <div id="suggestion-chips" class="chips">
-      <button class="chip" data-message="What's the weather?">🌤️ Weather</button>
-      <button class="chip" data-message="What time is it?">🕒 Time</button>
-      <button class="chip" data-message="What is 12 * 7?">🧮 Quick math</button>
-      <button class="chip" data-message="Tell me a joke">😄 Joke</button>
-      <button class="chip" data-message="What can you do?">❓ Help</button>
+    <section id="chat-window" class="transcript" aria-live="polite"></section>
+
+    <div id="suggestion-chips" class="quick-row" role="group" aria-label="Quick questions">
+      <button class="quick" data-message="What's the weather?">weather</button>
+      <button class="quick" data-message="What time is it?">time</button>
+      <button class="quick" data-message="What is 12 * 7?">12 × 7</button>
+      <button class="quick" data-message="Tell me a joke">joke</button>
+      <button class="quick" data-message="What can you do?">help</button>
     </div>
 
-    <section id="chat-window" class="chat-window" aria-live="polite"></section>
+    <section class="deck-controls">
+      <button id="speak-btn" class="talk-btn" title="Press to talk" aria-label="Press to talk">
+        <span class="talk-ring" aria-hidden="true"></span>
+        <span class="talk-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <rect x="9" y="2" width="6" height="12" rx="3"></rect>
+            <path d="M5 11a7 7 0 0 0 14 0"></path>
+            <path d="M12 18v4"></path>
+          </svg>
+        </span>
+      </button>
 
-    <section class="controls">
-      <input
-        id="text-input"
-        type="text"
-        placeholder="Try: 'what's the weather', 'what time is it', or type a message…"
-        autocomplete="off"
-      />
-      <button id="speak-btn" title="Speak">🎤 Speak</button>
-      <button id="send-btn" title="Send">Send</button>
+      <div class="input-row">
+        <input
+          id="text-input"
+          type="text"
+          placeholder="Ask about the weather, the time, a sum — or press to talk"
+          autocomplete="off"
+        />
+        <button id="send-btn" class="send-btn" title="Send">send</button>
+      </div>
     </section>
 
-    <p id="status" class="status">Loading model…</p>
+    <p id="status" class="status" aria-live="polite">loading model…</p>
     <p class="footnote">
-      Voice recognition requires microphone access &mdash; if it's
-      unavailable, use the text box instead. Weather uses your device
-      location (if allowed) or a city you name, e.g. "weather in Chennai".
+      Voice needs microphone access — the text box always works as a fallback.
+      Weather uses your device location if you allow it, or a city you name,
+      e.g. "weather in Chennai".
     </p>
   </main>
 
