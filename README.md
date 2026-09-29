@@ -35,21 +35,26 @@ The app is a full dashboard rather than a single chat card:
   the language dropdown (English US/UK, Hindi) sets
   `speechConfig.speechRecognitionLanguage` for the next recognition.
 
-### Smart answers (weather, time, date, math)
+### Smart answers (weather, time, date, math, definitions)
 Before falling back to the trained intent classifier, `web/app.js` checks
 the message against a small ordered list of rule-based handlers:
 - **Weather** — via [Open-Meteo](https://open-meteo.com) (free, no API key,
   called directly from the browser). Uses your device location (with
   permission) or a named city, e.g. "weather in Chennai".
-- **Time** / **Date** — `Date` formatted locally in the browser.
-- **Quick math** — simple arithmetic expressions (`+ - * / ()`), evaluated
-  with a small hand-written parser (no `eval`).
+- **Time** — resolved against a real IANA time zone when a place is named
+  (e.g. "time in Australia"), otherwise the browser's local time.
+- **Date** — `Date` formatted locally in the browser.
+- **Math** — arithmetic (`+ - * / ()`), square/cube roots, powers, and
+  percentages, evaluated with a small hand-written parser (no `eval`).
+- **Word definitions** — via the free [Dictionary API](https://dictionaryapi.dev)
+  for "meaning of X" / "define X" / "what does X mean".
 
-These are plain deterministic JS, not part of the trained model — the NN
-only ever selects from a fixed list of canned responses per intent, which
-can't express live/computed answers like the current temperature or time.
-No new Azure resources or secrets were needed for this: Open-Meteo and the
-browser's Geolocation API are both keyless and client-side only.
+These are plain deterministic JS (or a real API call), not part of the
+trained model — the NN only ever selects from a fixed list of canned
+responses per intent, which can't express live/computed answers or look
+anything up. No new Azure resources or secrets were needed for any of
+this: Open-Meteo, the Dictionary API, and the browser's Geolocation API
+are all keyless and called directly from the client.
 
 ## Project structure
 ```

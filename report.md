@@ -123,11 +123,15 @@ After the initial deployment, the web app was extended with:
 - **A rule-based "smart answers" intercept** in `web/app.js`, checked before
   the NN classifier: live **weather** (via the free, keyless
   [Open-Meteo](https://open-meteo.com) API, using device geolocation or a
-  named city), **current time**, **today's date**, and **simple arithmetic**
-  (evaluated with a small hand-written parser, no `eval`). These require
-  real/computed data the fixed-response NN classifier structurally can't
-  produce, so they deliberately sit *in front of*, not inside, the trained
-  model — `chatbot_model.py`, `train.py`, and `model/` are unchanged.
+  named city), **current time** (resolved against a real time zone for a
+  named place), **today's date**, **arithmetic** (including square/cube
+  roots, powers, and percentages, evaluated with a small hand-written
+  parser, no `eval`), and **word definitions** (via the free
+  [Dictionary API](https://dictionaryapi.dev)). These require real,
+  computed, or looked-up data the fixed-response NN classifier
+  structurally can't produce, so they deliberately sit *in front of*, not
+  inside, the trained model — `chatbot_model.py`, `train.py`, and
+  `model/` are unchanged.
 - **UI/UX improvements**: live interim captions while speaking (via the
   Speech SDK's `recognizing` event) with a stop/cancel control, a "thinking"
   indicator while a reply is prepared, a clear-chat button, quick
