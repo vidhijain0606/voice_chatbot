@@ -578,10 +578,10 @@ function trySpecialMath(msg) {
   const num = "(-?\\d+(?:\\.\\d+)?)";
   let m;
 
-  if ((m = lower.match(new RegExp(`square root of\\s*${num}`)))) {
+  if ((m = lower.match(new RegExp(`(?:square root of|square root|sqrt|√)\\s*\\(?\\s*${num}\\s*\\)?`)))) {
     return { expr: `√${m[1]}`, result: Math.sqrt(parseFloat(m[1])) };
   }
-  if ((m = lower.match(new RegExp(`cube root of\\s*${num}`)))) {
+  if ((m = lower.match(new RegExp(`(?:cube root of|cube root|cbrt|∛)\\s*\\(?\\s*${num}\\s*\\)?`)))) {
     return { expr: `∛${m[1]}`, result: Math.cbrt(parseFloat(m[1])) };
   }
   if ((m = lower.match(new RegExp(`${num}\\s*(?:to the power of|raised to(?: the power of)?)\\s*${num}`)))) {
