@@ -837,7 +837,7 @@ exportBtn.addEventListener("click", () => {
     return;
   }
   const lines = active.messages.map((m) => {
-    const who = m.role === "user" ? "You" : "VANI";
+    const who = m.role === "user" ? "You" : "Voicebot";
     const content =
       m.text ||
       (m.weather ? `${m.weather.temp}°C, ${m.weather.cond} in ${m.weather.place} (wind ${m.weather.wind} km/h)` : "") ||
@@ -848,7 +848,7 @@ exportBtn.addEventListener("click", () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "vani-transcript.txt";
+  a.download = "voicebot-transcript.txt";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

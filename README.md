@@ -1,10 +1,9 @@
-# VANI — Voice-Enabled Chatbot
+# Voice-Enabled Chatbot
 
-**VANI** (from the Sanskrit/Hindi word for "voice") is a voice-enabled
-chatbot combining **Azure AI Speech** (speech-to-text) with a **Deep
-Learning intent-classification model** (Keras feedforward neural network)
-trained on **Azure Machine Learning**, deployed on **Azure Static Web
-Apps**.
+A voice-enabled chatbot combining **Azure AI Speech** (speech-to-text) with a
+**Deep Learning intent-classification model** (Keras feedforward neural
+network) trained on **Azure Machine Learning**, deployed on **Azure Static
+Web Apps**.
 
 **Author:** Vidhi Prashant Jain (23BAI0063)
 **Live demo:** https://lively-smoke-01c7d2900.3.azurestaticapps.net

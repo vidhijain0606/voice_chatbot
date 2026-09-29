@@ -28,7 +28,7 @@
     {
       "tag": "name",
       "patterns": ["What should I call you", "Do you have a name", "Your name please"],
-      "responses": ["You can call me VANI.", "I go by VANI!"]
+      "responses": ["You can call me VoiceBot.", "I go by VoiceBot!"]
     },
     {
       "tag": "hours",
