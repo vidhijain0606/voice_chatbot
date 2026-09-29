@@ -329,6 +329,39 @@ function isDateQuery(msg) {
   return /\b(what(?:'s| is)(?: today's)? date|what day is it|today's date|what is the date)\b/i.test(msg);
 }
 
+// --- Word definitions (Free Dictionary API: free, keyless, CORS-enabled) ---
+// General-knowledge questions like "meaning of yellow" have no trained
+// intent at all, so without this the tiny NN classifier just guesses the
+// nearest-sounding intent (often "greeting") instead of answering or
+// admitting it doesn't know -- a real dictionary lookup fixes that class
+// of question the same way the weather/math intercepts do.
+function extractDefinitionWord(msg) {
+  const lower = msg.toLowerCase().trim();
+  let m;
+  if ((m = lower.match(/(?:meaning|definition) of\s+([a-z]+)/))) return m[1];
+  if ((m = lower.match(/what does\s+([a-z]+)\s+mean/))) return m[1];
+  if ((m = lower.match(/^define\s+([a-z]+)/))) return m[1];
+  return null;
+}
+
+async function handleDefinitionQuery(msg) {
+  const word = extractDefinitionWord(msg);
+  try {
+    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+    if (!res.ok) throw new Error(`Lookup failed: ${res.status}`);
+    const data = await res.json();
+    const meaning = data[0] && data[0].meanings && data[0].meanings[0];
+    const def = meaning && meaning.definitions && meaning.definitions[0] && meaning.definitions[0].definition;
+    if (!def) throw new Error("No definition in response");
+    const capitalized = word.charAt(0).toUpperCase() + word.slice(1);
+    const pos = meaning.partOfSpeech ? ` (${meaning.partOfSpeech})` : "";
+    return { text: `${capitalized}${pos}: ${def}` };
+  } catch (err) {
+    console.error("Definition lookup failed:", err);
+    return { text: `I couldn't find a definition for "${word}". Try rephrasing, e.g. "define ${word}".` };
+  }
+}
+
 // Maps a place name mentioned in the message to a real IANA time zone, so
 // "time in Australia" answers with Australia's clock, not the browser's.
 // Sorted longest-key-first so "new york" matches before a shorter overlap.
@@ -714,6 +747,7 @@ const smartAnswers = [
     }),
   },
   { test: isWeatherQuery, handle: handleWeatherQuery },
+  { test: (msg) => extractDefinitionWord(msg) !== null, handle: handleDefinitionQuery },
   {
     test: (msg) => trySpecialMath(msg) !== null,
     handle: (msg) => {
