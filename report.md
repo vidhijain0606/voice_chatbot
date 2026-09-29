@@ -1,7 +1,16 @@
-# Lab Report — Voice-Enabled Chatbot using Speech Recognition and Deep Learning
+# Lab Report — VANI: A Voice-Enabled Chatbot using Speech Recognition and Deep Learning
+
+**Name:** Vidhi Prashant Jain
+**Registration No.:** 23BAI0063
+**Course/Lab:** Speech and Language Processing (SLP) Lab
+**Assignment:** Lab Assessment — Voice-Enabled Chatbot (20 marks)
+**Deadline:** 30 September 2026
+
+**Live deployment:** https://lively-smoke-01c7d2900.3.azurestaticapps.net
+**Chatbot name:** VANI (from the Sanskrit/Hindi word for "voice")
 
 ## 1. Objective
-Develop, implement, and deploy an online voice-enabled chatbot that:
+Develop, implement, and deploy **VANI**, an online voice-enabled chatbot that:
 - Accepts voice input from the user.
 - Converts speech to text using a Speech Recognition technique.
 - Processes the text using a Deep Learning-based intent classification model.
