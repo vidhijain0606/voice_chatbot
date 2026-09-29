@@ -42,6 +42,7 @@ const historyEl = document.getElementById("history");
 const feedInner = document.getElementById("feed-inner");
 const systemBanner = document.getElementById("system-banner");
 const textInput = document.getElementById("text-input");
+const dock = document.getElementById("dock");
 const speakBtn = document.getElementById("speak-btn");
 const sendBtn = document.getElementById("send-btn");
 const clearBtn = document.getElementById("clear-btn");
@@ -928,10 +929,13 @@ async function recognizeSpeechOnce() {
   const recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
   activeRecognizer = recognizer;
 
-  // Live interim captions while the user is still speaking.
+  // Live interim captions, shown directly in the text input itself -- the
+  // same box you'd type into doubles as the live voice-note transcript, so
+  // recognition feedback appears exactly where the user is looking instead
+  // of in a separate status line elsewhere on the page.
   recognizer.recognizing = (_s, e) => {
     if (e.result && e.result.text) {
-      setStatus(`listening: "${e.result.text}"`);
+      textInput.value = e.result.text;
     }
   };
 
@@ -957,6 +961,14 @@ async function recognizeSpeechOnce() {
   });
 }
 
+const TEXT_PLACEHOLDER = textInput.placeholder;
+
+function setListeningUi(isListening) {
+  speakBtn.classList.toggle("listening", isListening);
+  dock.classList.toggle("listening", isListening);
+  textInput.placeholder = isListening ? "Listening… speak now" : TEXT_PLACEHOLDER;
+}
+
 function stopListening() {
   if (activeRecognizer) {
     try {
@@ -966,7 +978,7 @@ function stopListening() {
     }
     activeRecognizer = null;
   }
-  speakBtn.classList.remove("listening");
+  setListeningUi(false);
   setStatus("cancelled.");
 }
 
@@ -975,17 +987,18 @@ speakBtn.addEventListener("click", async () => {
     stopListening();
     return;
   }
-  speakBtn.classList.add("listening");
-  setStatus("listening — speak now…");
+  textInput.value = "";
+  setListeningUi(true);
+  setStatus("");
   try {
     const transcript = await recognizeSpeechOnce();
-    setStatus(`recognized: "${transcript}"`);
+    textInput.value = transcript;
+    setListeningUi(false);
     await handleUserMessage(transcript);
   } catch (err) {
     console.error(err);
+    setListeningUi(false);
     setStatus(`speech error: ${err.message || err}`);
-  } finally {
-    speakBtn.classList.remove("listening");
   }
 });
 
