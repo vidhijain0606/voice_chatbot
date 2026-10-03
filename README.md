@@ -7,6 +7,7 @@ Web Apps**.
 
 **Author:** Vidhi Prashant Jain (23BAI0063)
 **Live demo:** https://lively-smoke-01c7d2900.3.azurestaticapps.net
+**Repository:** https://github.com/vidhijain0606/voice_chatbot
 
 ## How it works
 1. Press the mic button in the input dock — the browser fetches a short-lived token from `/api/get-speech-token` (an Azure Function) and uses the Azure Speech SDK for JavaScript to transcribe your voice to text, showing a live interim caption in the status log while you talk (press it again to cancel).
