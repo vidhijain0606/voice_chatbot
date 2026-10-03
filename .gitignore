@@ -5,3 +5,7 @@ __pycache__/
 node_modules/
 .swa/
 debug.log
+
+# demo recordings (uploaded to Drive separately, not tracked in git)
+*.mp4
+*.MP4
